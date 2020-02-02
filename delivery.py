@@ -5,7 +5,7 @@ import xlrd
 from xlrd.sheet import Sheet
 import xlwt
 from xlwt import Worksheet
-from utils import School, Route, RouteMap
+from utils import RouteMap, AccountDatabase
 
 
 def text_style():
@@ -50,98 +50,85 @@ TEXT = text_style()
 SCHOOL = school_tag_style()
 
 
-def parse_routes(route_table: Sheet) -> RouteMap:
-    '''
-    Build route map with schools.
-    '''
-    routes = route_table.col_values(0)
-    schools = route_table.col_values(1)
-    assert len(schools) == len(routes)
-    abbrs = route_table.col_values(2)
-    assert len(abbrs) == len(schools)
+def distribute(db: AccountDatabase, route_map: RouteMap):
+    # get and check date
+    cur = db.select('DISTINCT DATE')
+    dates = [i[0] for i in cur]
+    assert len(dates) == 1, '一次只能处理一天的数据'
+    date = xlrd.xldate_as_tuple(dates[0], 0)
+    path = '线路分拣表 {:02d}月{:02d}日.xls'.format(date[1], date[2])
 
-    route_map = RouteMap()
-    for i, route in enumerate(routes):
-        try:
-            route_map.add_route(route, schools[i], abbrs[i])
-        except KeyError as e:
-            print(e.args[0])
-    return route_map
+    # add route to database
+    db.cur.execute('ALTER TABLE TEMP ADD COLUMN ROUTE CHAR(32);')
+    stm = 'UPDATE TEMP SET ROUTE={} WHERE SCHOOL={}'
+    for school, (route, _) in route_map.schools.items():
+        db.cur.execute(stm.format(repr(route), repr(school)))
+    db.conn.commit()
 
+    # ckeck for non-routed schools
+    cur = db.select('DISTINCT SCHOOL, ROUTE')
+    to_del = []
+    for i in cur:
+        if not i[1]:
+            print('学校“{}”无对应路线，已丢弃其所有记录'.format(i[0]))
+            to_del.append(i[0])
+    for i in to_del:
+        db.cur.execute('DELETE FROM TEMP WHERE SCHOOL={}'.format(repr(i)))
 
-def parse_manifest(manifest: Sheet, route_map: RouteMap):
-    '''
-    Map items in manifest to schools in route map.
-    '''
-    schools = manifest.col_values(2, 1)
-    names = manifest.col_values(6, 1)
-    assert len(names) == len(schools)
-    specs = manifest.col_values(7, 1)
-    assert len(specs) == len(names)
-    numbers = manifest.col_values(8, 1)
-    assert len(numbers) == len(specs)
-
-    for i, school in enumerate(schools):
-        if school not in route_map.schools:
-            print('学校“{}”未出现在线路分配表中'.format(school))
-            continue
-        route_map.schools[school].add_goods(names[i], specs[i], numbers[i])
-
-
-def save_result(route_map: RouteMap, path: str):
     workbook = xlwt.Workbook(encoding='utf-8')
 
-    for name, route in route_map.routes.items():
-        sheet = workbook.add_sheet(name)
-
-        goods_sum = {}  # (name, spec): number
-        for school in route.schools:
-            for k, w in school.goods.items():
-                if k in goods_sum:
-                    goods_sum[k] += w
-                else:
-                    goods_sum[k] = w
-
-        sheet.write(0, 0, route.name, SCHOOL)
+    # draw each route
+    cur = db.select('DISTINCT ROUTE')
+    routes = route_map.sort_route([i[0] for i in cur if i[0]])
+    for route in routes:
+        sheet = workbook.add_sheet(route)
+        sheet.write(0, 0, route, SCHOOL)
 
         # write goods tags
-        goods_idx = {}  # (name, spec): index
-        for i, goods in enumerate(goods_sum.keys()):
-            goods_idx[goods] = i+1
-            sheet.write(i+1, 0, goods[0], TEXT)
+        stm = 'SELECT DISTINCT NAME FROM TEMP WHERE ROUTE={} AND KIND={}'
+        goods = []
+        for kind in ['肉', '菜', '油料干货', '调料制品']:
+            cur = db.cur.execute(stm.format(repr(route), repr(kind)))
+            goods += [i[0] for i in cur]
+        for i, gd in enumerate(goods):
+            sheet.write(i+1, 0, gd, TEXT)
+        goods_sum = [0] * len(goods)
 
         # write schools
-        for i, school in enumerate(route.schools):
+        cur = db.select('DISTINCT SCHOOL', 'ROUTE={}'.format(repr(route)))
+        schools = route_map.sort_school([i[0] for i in cur])
+        stm = 'SELECT SUM(NUMBER) FROM TEMP WHERE SCHOOL={} AND NAME={}'
+        for i, school in enumerate(schools):
             sheet.col(i+1).width_mismatch = True
             sheet.col(i+1).width = 2000
-            sheet.write(0, i+1, school.abbr, SCHOOL)
-            for goods, index in goods_idx.items():
-                if goods in school.goods:
-                    sheet.write(index, i+1, school.goods[goods], TEXT)
-                else:
-                    sheet.write(index, i+1, '', TEXT)
+            sheet.write(0, i+1, route_map.schools[school][1], SCHOOL)
+            for j, gd in enumerate(goods):
+                cur = db.cur.execute(stm.format(repr(school), repr(gd)))
+                value = cur.__next__()[0]
+                goods_sum[j] += value if value else 0
+                sheet.write(j+1, i+1, value if value else '', TEXT)
 
         # write goods sum
         sheet.col(i+2).width_mismatch = True
         sheet.col(i+2).width = 2000
         sheet.write(0, i+2, '总计', SCHOOL)
-        for k, w in goods_sum.items():
-            sheet.write(goods_idx[k], len(route.schools)+1, w, TEXT)
+        for j, gd in enumerate(goods_sum):
+            sheet.write(j+1, i+2, gd, TEXT)
 
     workbook.save(path)
 
 
-def distribute(manifest: Sheet, route: Sheet, save_path: str):
-    route_map = parse_routes(route)
-    parse_manifest(manifest, route_map)
-    save_result(route_map, save_path)
+def handle(manifest: Sheet, route: Sheet):
+    db = AccountDatabase(manifest)
+    route_map = RouteMap(route)
+    distribute(db, route_map)
 
 
 if __name__ == '__main__':
-    manifest = xlrd.open_workbook('data/12月 008仓库 开票明细.xls')
+    manifest = xlrd.open_workbook('data/众浩12月2日.xls')
     route = xlrd.open_workbook('data/线路分配表.xlsx')
 
     mani = manifest.sheet_by_index(0)
     rout = route.sheet_by_index(0)
 
-    distribute(mani, rout, 'result.xls')
+    handle(mani, rout)

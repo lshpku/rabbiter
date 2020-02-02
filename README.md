@@ -1,7 +1,7 @@
 # Rabbiter
 表单处理小程序
 
-## requirements
+## Requirements
 ```
 python3
 xlrd
