@@ -14,7 +14,7 @@ import threading
 
 window = tk.Tk()
 window.title('报表处理小工具')
-window.geometry('500x350')
+window.geometry('480x320')
 
 # Func 1
 tk.Label(window, text='每日线路分配').pack()
@@ -53,8 +53,6 @@ select_monthly = SheetSelector(window, '开票明细')
 
 
 def do_pivottable():
-    if f2_lock.locked():
-        return
     def pt_thread(sheet: Sheet, log=print):
         f2_lock.acquire()
         try:
@@ -66,6 +64,9 @@ def do_pivottable():
             return
         log('转换完成')
         f2_lock.release()
+
+    if f2_lock.locked():
+        return
     try:
         monthly = select_monthly.get()
         assert monthly, '未选择开票明细'
@@ -88,29 +89,15 @@ ttk.Separator(window, orient='horizontal').pack(fill=tk.X)
 
 # Author info
 with Line(window) as l:
-    text = tk.Label(l, height=1)
-    text.pack()
-
-text.insert(tk.INSERT, '项目地址：https://github.com/lshpku/rabbiter')
-
-text.tag_add('link', '1.5', '1.39')
-text.tag_config('link', foreground='blue', underline=True)
+    tk.Label(l, text='项目地址：').pack(side='left')
+    url = tk.Label(l, text='https://github.com/lshpku/rabbiter')
+    url.pack(side='left')
 
 
-def show_hand_cursor(event):
-    text.config(cursor='arrow')
-
-
-def show_xterm_cursor(event):
-    text.config(cursor='xterm')
-
-
-def click(event):
+def open_url(event):
     webbrowser.open('https://github.com/lshpku/rabbiter')
 
 
-text.tag_bind('link', '<Enter>', show_hand_cursor)
-text.tag_bind('link', '<Leave>', show_xterm_cursor)
-text.tag_bind('link', '<Button-1>', click)
+url.bind("<Button-1>", open_url)
 
 window.mainloop()

@@ -178,5 +178,16 @@ class SheetSelector():
         return self.workbook.sheet_by_name(self.cbox.get())
 
 
+class Logger():
+    def __init__(self, master=None):
+        pass
+
+    def show(self):
+        pass
+
+    def __call__(self, info):
+        pass
+
+
 if __name__ == '__main__':
     pass
