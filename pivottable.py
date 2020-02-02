@@ -240,7 +240,7 @@ def handle_school(school: str, db: AccountDatabase, save_path: str):
     workbook.save(save_path)
 
 
-def handle(sheet: Sheet, save_path='.', log=print):
+def handle(sheet: Sheet, log=print):
     '''
     Handle accounts of all schools in a month.
     '''
@@ -254,7 +254,7 @@ def handle(sheet: Sheet, save_path='.', log=print):
     assert len(months) == 1, '一次只能处理一个月的数据'
 
     month = '{:02d}月'.format([i for i in months][0])
-    path = os.path.join(save_path, month)
+    path = os.path.join('.', month)
     if not os.path.exists(path):
         os.mkdir(path)
     for i, school in enumerate(schools):
