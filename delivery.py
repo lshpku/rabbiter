@@ -5,6 +5,7 @@ import xlrd
 from xlrd.sheet import Sheet
 import xlwt
 from xlwt import Worksheet
+import utils
 from utils import RouteMap, AccountDatabase
 
 
@@ -70,7 +71,7 @@ def distribute(db: AccountDatabase, route_map: RouteMap):
     to_del = []
     for i in cur:
         if not i[1]:
-            print('学校“{}”无对应路线，已丢弃其所有记录'.format(i[0]))
+            utils.log('学校“{}”无对应路线，已丢弃其所有记录'.format(i[0]))
             to_del.append(i[0])
     for i in to_del:
         db.cur.execute('DELETE FROM TEMP WHERE SCHOOL={}'.format(repr(i)))

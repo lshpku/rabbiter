@@ -35,7 +35,7 @@ class RouteMap():
             route, abbr = routes[i], abbrs[i]
             if (not school) or (not route) or (not abbr):
                 stm = '不完整的记录：第{}行：“{} {} {}”，已丢弃'
-                print(stm.format(i+1, school, route, abbr))
+                log(stm.format(i+1, school, route, abbr))
             else:
                 self.schools[school] = (route, abbr)
                 self.rt_idx.setdefault(route, len(self.rt_idx))
@@ -178,16 +178,34 @@ class SheetSelector():
         return self.workbook.sheet_by_name(self.cbox.get())
 
 
-class Logger():
-    def __init__(self, master=None):
-        pass
+class ErrorLogger():
+    def __init__(self):
+        self.logs = []
 
     def show(self):
-        pass
+        if not self.logs:
+            return
+        win = tk.Tk()
+        win.title('警告')
+        win.geometry('240x160')
+        frame = tk.Frame(win, padx=10, pady=10)
+        text = tk.Text(frame)
+        for i in self.logs:
+            text.insert(tk.END, '{}\n'.format(i))
+        text.pack()
+        frame.pack()
+        win.mainloop()
 
-    def __call__(self, info):
-        pass
+    def __call__(self, info: str):
+        self.logs.append(info)
+
+    def clear(self):
+        self.logs = []
+
+
+log = ErrorLogger()
 
 
 if __name__ == '__main__':
-    pass
+    log('白兔')
+    log.show()

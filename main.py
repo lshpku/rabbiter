@@ -7,6 +7,7 @@ from xlrd.sheet import Sheet
 import os
 import delivery
 import pivottable
+import utils
 from utils import Line, SheetSelector
 import webbrowser
 import threading
@@ -31,8 +32,10 @@ def do_delivery():
         route = select_route.get()
         assert route, '未选择线路分配表'
         f1_label.set('转换中')
+        utils.log.clear()
         delivery.handle(manifest, route)
         f1_label.set('转换完成')
+        utils.log.show()
     except Exception as e:
         f1_label.set('')
         mb.showerror('错误', str(e))
