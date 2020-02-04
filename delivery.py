@@ -24,7 +24,7 @@ def check_date_get_path(db: AccountDatabase) -> str:
     dates = [i[0] for i in cur]
     assert len(dates) == 1, '一次只能处理一天的数据'
     date = xlrd.xldate_as_tuple(dates[0], 0)
-    path = '分拣表 {:02d}月{:02d}日.xls'.format(date[1], date[2])
+    path = '分拣结果 {:02d}月{:02d}日.xls'.format(date[1], date[2])
     return path
 
 
@@ -111,17 +111,17 @@ def daily_sum(sheet: Worksheet, db: AccountDatabase):
 
 def handle(manifest: Sheet, route: Sheet):
     db = AccountDatabase(manifest)
-    route_map = RouteMap(route)
     path = check_date_get_path(db)
-    add_route(db, route_map)
-
     workbook = xlwt.Workbook(encoding='utf-8')
 
-    cur = db.select('DISTINCT ROUTE')
-    routes = route_map.sort_route([i[0] for i in cur if i[0]])
-    for route in routes:
-        db.set_where('ROUTE={}'.format(repr(route)))
-        distribute(workbook.add_sheet(route), db, route_map)
+    if route:
+        route_map = RouteMap(route)
+        add_route(db, route_map)
+        cur = db.select('DISTINCT ROUTE')
+        routes = route_map.sort_route([i[0] for i in cur if i[0]])
+        for route in routes:
+            db.set_where('ROUTE={}'.format(repr(route)))
+            distribute(workbook.add_sheet(route), db, route_map)
 
     db.set_where()
     daily_sum(workbook.add_sheet('今日汇总'), db)

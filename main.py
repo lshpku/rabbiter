@@ -30,7 +30,8 @@ def do_delivery():
         manifest = select_manifest.get()
         assert manifest, '未选择开票明细'
         route = select_route.get()
-        assert route, '未选择线路分配表'
+        if not route:
+            mb.showinfo('提示', '未选择线路分配表，将只生成今日汇总')
         f1_label.set('转换中')
         utils.log.clear()
         delivery.handle(manifest, route)
