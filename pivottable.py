@@ -90,10 +90,8 @@ SUM = sum_style()
 
 def pivottable_2d(sheet: Worksheet, db: AccountDatabase,
                   vert: str, horz: str):
-    cur = db.select('DISTINCT {}'.format(vert))
-    ys = [i[0] for i in cur]
-    cur = db.select('DISTINCT {}'.format(horz))
-    xs = [i[0] for i in cur]
+    ys = db.sorted_one(vert)
+    xs = db.sorted_one(horz)
 
     for i, x in enumerate(xs):
         sheet.write(0, i+1, x, HEAD)
@@ -120,10 +118,8 @@ def pivottable_2d(sheet: Worksheet, db: AccountDatabase,
 
 def pivottable_2d2(sheet: Worksheet, db: AccountDatabase,
                    vert: str, horz: str):
-    cur = db.select('DISTINCT {}'.format(vert))
-    ys = [i[0] for i in cur]
-    cur = db.select('DISTINCT {}'.format(horz))
-    xs = [i[0] for i in cur]
+    ys = db.sorted_one(vert)
+    xs = db.sorted_one(horz)
 
     for i, x in enumerate(xs):
         sheet.write_merge(0, 0, i*2+1, i*2+2, x, HEAD)
@@ -154,10 +150,7 @@ def pivottable_2d2(sheet: Worksheet, db: AccountDatabase,
 
 
 def pivottable_3d(sheet: Worksheet, db: AccountDatabase):
-    cur = db.select('DISTINCT DATE')
-    dates = [i[0] for i in cur]
-    dates.sort()
-
+    dates = db.sorted_one('DATE')
     month = xlrd.xldate_as_tuple(dates[0], 0)[1]
 
     meal = db.select('DISTINCT MEAL').__next__()[0]
@@ -188,12 +181,9 @@ def pivottable_3d(sheet: Worksheet, db: AccountDatabase):
     sheet.write(idx, i+2, row_sum, SUM)
     idx += 1
 
-    for kinds, tag in [(['菜'], '菜'), (['肉'], '肉'),
-                       (['油料干货', '调料制品'], '调料')]:
-        names = []
-        for i in kinds:
-            cur = db.select('DISTINCT NAME', 'KIND={}'.format(repr(i)))
-            names += [i[0] for i in cur]
+    kinds = db.sorted_one('KIND')
+    for kind in kinds:
+        names = db.sorted_one('NAME', 'KIND={}'.format(repr(kind)))
         col_sum = [0] * len(dates)
         for name in names:
             row_sum = 0
@@ -206,7 +196,7 @@ def pivottable_3d(sheet: Worksheet, db: AccountDatabase):
                 sheet.write(idx, i+1, xs if xs else '', TEXT)
             sheet.write(idx, i+2, row_sum, TEXT)
             idx += 1
-        sheet.write(idx, 0, '{}合计'.format(tag), SUM)
+        sheet.write(idx, 0, '{}合计'.format(kind), SUM)
         for i, s in enumerate(col_sum):
             sheet.write(idx, i+1, s, SUM)
         sheet.write(idx, i+2, sum(col_sum), SUM)

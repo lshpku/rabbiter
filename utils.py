@@ -51,16 +51,6 @@ class RouteMap():
         res.sort()
         return [i[1] for i in res]
 
-    @staticmethod
-    def sort_kind(kinds: list) -> list:
-        order = ['肉', '菜', '油料干货', '调料制品', '杂货类']
-        order = {j: i for i, j in enumerate(order)}
-        res = []
-        for i in kinds:
-            res.append((order.get(i, len(order)), i))
-        res.sort()
-        return [i[1] for i in res]
-
 
 class AccountDatabase():
     '''
@@ -104,6 +94,18 @@ class AccountDatabase():
             self.cur.execute(statement.format(values))
         self.conn.commit()
 
+        # add extra order:
+        order = ['肉', '菜', '油料干货', '调料制品', '杂货类']
+        self.kind_order = {j: i for i, j in enumerate(order)}
+        order = ['营养餐', '非营养餐', '幼儿餐', '教师餐']
+        self.meal_order = {j: i for i, j in enumerate(order)}
+
+        cur = self.select('DISTINCT NAME, KIND')
+        names = [(self.kind_order.get(k, len(self.kind_order)), n)
+                 for n, k in cur]
+        names.sort()
+        self.name_order = {j[1]: i for i, j in enumerate(names)}
+
     def set_where(self, where=None):
         '''
         Set basic `WHERE`. This will replace the previous setting.
@@ -120,6 +122,37 @@ class AccountDatabase():
         stm = 'SELECT {} FROM TEMP{}'.format(
             target, ' WHERE {}'.format(wheres) if wheres else '')
         return self.cur.execute(stm)
+
+    def sorted_one(self, target: str, where=None) -> list:
+        '''
+        Select one target that is sorted.
+        '''
+        target = target.split()
+        assert len(target) == 1, 'only support one target'
+        target = ''.join(target).lower()
+
+        w1 = self.where if self.where else ''
+        w2 = where if where else ''
+        wheres = ' AND '.join([w1, w2]) if w1 and w2 else w1+w2
+        stm = 'SELECT DISTINCT {} FROM TEMP{}'.format(
+            target, ' WHERE {}'.format(wheres) if wheres else '')
+        res = [i[0] for i in self.cur.execute(stm)]
+
+        if target == 'kind':
+            return self.sort(res, self.kind_order)
+        if target == 'meal':
+            return self.sort(res, self.meal_order)
+        if target == 'name':
+            return self.sort(res, self.name_order)
+        res.sort()
+        return res
+
+    @staticmethod
+    def sort(target: list, order: list) -> list:
+        order = {j: i for i, j in enumerate(order)}
+        res = [(order.get(i, len(order)), i) for i in target]
+        res.sort()
+        return [i[1] for i in res]
 
 
 class Line():

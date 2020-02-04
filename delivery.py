@@ -53,8 +53,7 @@ def distribute(sheet: Worksheet, db: AccountDatabase, route_map: RouteMap):
     sheet.write(0, 0, route, SCHOOL)
 
     # write goods tags in kinds' order
-    cur = db.select('DISTINCT KIND')
-    kinds = route_map.sort_kind([i[0] for i in cur])
+    kinds = db.sorted_one('KIND')
     goods = []
     for kind in kinds:
         cur = db.select('DISTINCT NAME', 'KIND={}'.format(repr(kind)))
@@ -90,8 +89,7 @@ def daily_sum(sheet: Worksheet, db: AccountDatabase):
     for i, j in enumerate(header):
         sheet.write(0, i, j, HEAD)
 
-    cur = db.select('DISTINCT KIND')
-    kinds = RouteMap.sort_kind([i[0] for i in cur])
+    kinds = db.sorted_one('KIND')
     idx = 1
     for kind in kinds:
         sheet.write(idx, 0, kind, KIND)
