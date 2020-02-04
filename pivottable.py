@@ -265,4 +265,4 @@ def handle(sheet: Sheet, log=print):
 
 if __name__ == '__main__':
     workbook = xlrd.open_workbook('data/12月 008仓库 开票明细.xls')
-    handle(workbook.sheet_by_index(0), '.')
+    handle(workbook.sheet_by_index(0))

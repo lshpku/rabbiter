@@ -51,6 +51,16 @@ class RouteMap():
         res.sort()
         return [i[1] for i in res]
 
+    @staticmethod
+    def sort_kind(kinds: list) -> list:
+        order = ['肉', '菜', '油料干货', '调料制品', '杂货类']
+        order = {j: i for i, j in enumerate(order)}
+        res = []
+        for i in kinds:
+            res.append((order.get(i, len(order)), i))
+        res.sort()
+        return [i[1] for i in res]
+
 
 class AccountDatabase():
     '''
@@ -187,7 +197,7 @@ class ErrorLogger():
             return
         win = tk.Tk()
         win.title('警告')
-        win.geometry('240x160')
+        win.geometry('480x240')
         frame = tk.Frame(win, padx=10, pady=10)
         text = tk.Text(frame)
         for i in self.logs:
