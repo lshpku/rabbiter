@@ -11,6 +11,7 @@ import tkinter.filedialog as fd
 import tkinter.messagebox as mb
 import os
 import sqlite3
+from typing import Iterable
 
 
 class RouteMap():
@@ -60,51 +61,60 @@ class AccountDatabase():
     规格, 数量, 单位, 单价, 货款, 备注, 摘要, 仓库
     '''
     ARGS = [
-        ('DATE', 'REAL', 0),        # 日期
-        ('SCHOOL', 'CHAR(32)', 2),  # 客户名称
-        ('MEAL', 'CHAR(16)', 3),    # 餐类
-        ('KIND', 'CHAR(16)', 4),    # 货品类别
-        ('NAME', 'CHAR(32)', 6),    # 货品名称
-        ('SPEC', 'CHAR(32)', 7),    # 规格
-        ('NUMBER', 'REAL', 8),      # 数量
-        ('TOTAL', 'REAL', 11),      # 货款
+        'DATE   REAL     0',   # 日期
+        'SCHOOL CHAR(32) 2',   # 客户名称
+        'MEAL   CHAR(16) 3',   # 餐类
+        'KIND   CHAR(16) 4',   # 货品类别
+        'NAME   CHAR(32) 6',   # 货品名称
+        'SPEC   CHAR(32) 7',   # 规格
+        'NUMBER REAL     8',   # 数量
+        'TOTAL  REAL     11',  # 货款
     ]
 
-    def __init__(self, sheet: Sheet):
+    def __init__(self, sheet: Sheet, keys: Iterable[str] = ..., key_row=0):
         self.conn = sqlite3.connect(':memory:')
         self.cur = self.conn.cursor()
         self.where = None
+        self.orders = {}
 
         # create table
-        self.keys = sheet.row_values(0)
-        statement = ['{} {}'.format(i[0], i[1]) for i in self.ARGS]
-        statement = ','.join(statement)
-        self.cur.execute('CREATE TABLE TEMP({});'.format(statement))
-        self.conn.commit()
+        stm = []
+        col_keys = []
+        for i in (self.ARGS if keys is ... else keys):
+            key, ktype, col = i.split()
+            stm.append('{} {}'.format(key, ktype))
+            col_keys.append((int(col), key))
+        stm = 'CREATE TABLE TEMP({});'.format(','.join(stm))
+        self.cur.execute(stm)
 
         # add records
-        statement = ','.join([i[0] for i in self.ARGS])
-        statement = 'INSERT INTO TEMP({}) VALUES({{}})'.format(statement)
-        for i in range(1, sheet.nrows):
+        klist = ','.join([i[1] for i in col_keys])
+        stm = 'INSERT INTO TEMP({}) VALUES({})'
+        for i in range(key_row+1, sheet.nrows):
             row = sheet.row_values(i)
-            assert len(row) == len(self.keys), '不完整的行：{}'.format(i+1)
-            if not row[0]:  # avoid the f**king sum line
+            if (len(row) > 1) and (not row[1]):
                 continue
-            values = ','.join([repr(row[j[2]]) for j in self.ARGS])
-            self.cur.execute(statement.format(values))
+            vlist = ','.join([repr(row[j[0]]) for j in col_keys])
+            self.cur.execute(stm.format(klist, vlist))
         self.conn.commit()
 
-        # add extra order:
+        # add extra order
+        if keys is not ...:
+            return
         order = ['肉', '菜', '油料干货', '调料制品', '杂货类']
-        self.kind_order = {j: i for i, j in enumerate(order)}
+        self.add_order('kind', order)
         order = ['营养餐', '非营养餐', '幼儿餐', '教师餐']
-        self.meal_order = {j: i for i, j in enumerate(order)}
+        self.add_order('meal', order)
 
         cur = self.select('DISTINCT NAME, KIND')
-        names = [(self.kind_order.get(k, len(self.kind_order)), n)
-                 for n, k in cur]
+        order = self.orders['kind']
+        names = [(order.get(k, len(order)), n)  for n, k in cur]
         names.sort()
-        self.name_order = {j[1]: i for i, j in enumerate(names)}
+        self.add_order('name', [i[1] for i in names])
+
+    def add_order(self, attr: str, order: Iterable[str]):
+        order = {j: i for i, j in enumerate(order)}
+        self.orders[attr.lower()] = order
 
     def set_where(self, where=None):
         '''
@@ -112,16 +122,22 @@ class AccountDatabase():
         '''
         self.where = where
 
+    def get_where(self, where=None) -> str:
+        w1 = self.where if self.where else ''
+        w2 = where if where else ''
+        return ' AND '.join([w1, w2]) if w1 and w2 else w1+w2
+
     def select(self, target='*', where=None):
         '''
         Select with additional `WHERE`.
         '''
-        w1 = self.where if self.where else ''
-        w2 = where if where else ''
-        wheres = ' AND '.join([w1, w2]) if w1 and w2 else w1+w2
+        whr = self.get_where(where)
         stm = 'SELECT {} FROM TEMP{}'.format(
-            target, ' WHERE {}'.format(wheres) if wheres else '')
+            target, ' WHERE {}'.format(whr) if whr else '')
         return self.cur.execute(stm)
+
+    def distinct(self, target='*', where=None):
+        return self.select('DISTINCT {}'.format(target), where)
 
     def sorted_one(self, target: str, where=None) -> list:
         '''
@@ -130,29 +146,26 @@ class AccountDatabase():
         target = target.split()
         assert len(target) == 1, 'only support one target'
         target = ''.join(target).lower()
+        res = [i[0] for i in self.distinct(target, where)]
 
-        w1 = self.where if self.where else ''
-        w2 = where if where else ''
-        wheres = ' AND '.join([w1, w2]) if w1 and w2 else w1+w2
-        stm = 'SELECT DISTINCT {} FROM TEMP{}'.format(
-            target, ' WHERE {}'.format(wheres) if wheres else '')
-        res = [i[0] for i in self.cur.execute(stm)]
-
-        if target == 'kind':
-            return self.sort(res, self.kind_order)
-        if target == 'meal':
-            return self.sort(res, self.meal_order)
-        if target == 'name':
-            return self.sort(res, self.name_order)
+        order = self.orders.get(target)
+        if order:
+            res = [(order.get(i, len(order)), i) for i in res]
+            res.sort()
+            return [i[1] for i in res]
         res.sort()
         return res
 
-    @staticmethod
-    def sort(target: list, order: list) -> list:
-        order = {j: i for i, j in enumerate(order)}
-        res = [(order.get(i, len(order)), i) for i in target]
-        res.sort()
-        return [i[1] for i in res]
+    def update(self, target: str, where=None):
+        whr = self.get_where(where)
+        stm = 'UPDATE TEMP SET {}{}'.format(
+            target, ' WHERE {}'.format(whr) if whr else '')
+        self.cur.execute(stm)
+
+    def add_colume(self, *target: str):
+        stm = 'ALTER TABLE TEMP ADD COLUMN {};'
+        for i in target:
+            self.cur.execute(stm.format(i))
 
 
 class Line():

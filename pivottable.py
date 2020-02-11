@@ -12,80 +12,21 @@
 import xlrd
 from xlrd.sheet import Sheet
 import xlwt
-from xlwt import Worksheet
+from xlwt import Worksheet, easyxf
 from utils import AccountDatabase, RouteMap
 import os
 import sqlite3
 
+BORDER_FULL = 'border: left thin, right thin, top thin, bottom thin;'
+HORZ_CENTER = 'align: horz center;'
+BKG_GREEN = 'pattern: pattern solid, fore_color light_green;'
 
-def full_border():
-    border = xlwt.Borders()
-    border.left = xlwt.Borders.THIN
-    border.right = xlwt.Borders.THIN
-    border.top = xlwt.Borders.THIN
-    border.bottom = xlwt.Borders.THIN
-    return border
-
-
-def date_style():
-    style = xlwt.XFStyle()
-    style.borders = full_border()
-    style.num_format_str = 'yyyy/m/d'
-    return style
-
-
-def text_style():
-    align = xlwt.Alignment()
-    align.wrap = xlwt.Alignment.WRAP_AT_RIGHT
-    style = xlwt.XFStyle()
-    style.borders = full_border()
-    style.alignment = align
-    return style
-
-
-def head_style():
-    align = xlwt.Alignment()
-    align.horz = xlwt.Alignment.HORZ_CENTER
-    style = xlwt.XFStyle()
-    style.borders = full_border()
-    style.alignment = align
-    return style
-
-
-def month_style():
-    align = xlwt.Alignment()
-    align.horz = xlwt.Alignment.HORZ_CENTER
-    style = xlwt.XFStyle()
-    style.borders = full_border()
-    style.alignment = align
-    style.num_format_str = 'm/d'
-    return style
-
-
-def title_style():
-    align = xlwt.Alignment()
-    align.horz = xlwt.Alignment.HORZ_CENTER
-    style = xlwt.XFStyle()
-    style.alignment = align
-    return style
-
-
-def sum_style():
-    pattern = xlwt.Pattern()
-    pattern.pattern = xlwt.Pattern.SOLID_PATTERN
-    pattern.pattern_fore_colour = xlwt.Style.colour_map['light_green']
-    style = xlwt.XFStyle()
-    style.pattern = pattern
-    style.borders = full_border()
-    return style
-
-
-DATE = date_style()
-TEXT = text_style()
-HEAD = head_style()
-MONTH = month_style()
-TITLE = title_style()
-SUM = sum_style()
+DATE = easyxf(BORDER_FULL, 'yyyy/m/d')
+TEXT = easyxf(BORDER_FULL + 'align: wrap on;')
+HEAD = easyxf(BORDER_FULL + HORZ_CENTER)
+MONTH = easyxf(BORDER_FULL + HORZ_CENTER, 'm/d')
+TITLE = easyxf(HORZ_CENTER)
+SUM = easyxf(BORDER_FULL + BKG_GREEN)
 
 
 def pivottable_2d(sheet: Worksheet, db: AccountDatabase,
@@ -221,7 +162,7 @@ def handle_school(school: str, db: AccountDatabase, save_path: str):
     pivottable_2d2(workbook.add_sheet('类别'), db, 'KIND', 'MEAL')
     pivottable_2d2(workbook.add_sheet('品种'), db, 'NAME', 'MEAL')
 
-    meals = [i[0] for i in db.select('DISTINCT MEAL')]
+    meals = db.sorted_one('MEAL')
     for meal in meals:
         stm = 'SCHOOL={} AND MEAL={}'
         db.set_where(stm.format(repr(school), repr(meal)))
