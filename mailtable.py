@@ -4,7 +4,7 @@ import xlwt
 from xlwt import Worksheet, easyxf
 import os
 import utils
-from utils import AccountDatabase
+from utils import AccountDatabase, log
 import time
 from typing import Dict
 
@@ -149,8 +149,8 @@ def make_client_map(client_list: Sheet) -> Dict[str, str]:
         sal = sales[i]
         ret = client_map.setdefault(client, sal)
         if ret != sal:
-            e = '冲突：“{}”同时属于“{}”和“{}”'.format(client, ret, sal)
-            raise KeyError(e)
+            log('“{}”同时属于“{}”和“{}”，自动归为“{}”'
+                .format(client, ret, sal, ret))
     return client_map
 
 
@@ -177,7 +177,8 @@ def handle(manifest: Sheet, client_list: Sheet,
         clients = [i[0] for i in db.distinct('CLIENT')]
         for cli in clients:
             sal = db.client_map.get(cli)
-            assert sal, '客户“{}”无对应业务员'.format(cli)
+            if sal is None:
+                log('客户“{}”无对应业务员，已丢弃'.format(cli))
             db.update('SALES={}'.format(repr(sal)),
                       'CLIENT={}'.format(repr(cli)))
 
@@ -205,7 +206,7 @@ def handle(manifest: Sheet, client_list: Sheet,
         sales = db.sorted_one('SALES')
         for s in sales:
             db.set_where('SALES={}'.format(repr(s)))
-            salesman(workbook.add_sheet(s), db)
+            salesman(workbook.add_sheet(s if s else '其他'), db)
 
     # write anually
     if does_annually:
@@ -221,6 +222,6 @@ def handle(manifest: Sheet, client_list: Sheet,
 
 if __name__ == '__main__':
     workbook = xlrd.open_workbook(
-        'data/单位销售明细数据-2020_02_11-16_39_46.xls')
+        'data/单位销售明细数据-2020_02_13-13_14_53.xls')
     client_list = xlrd.open_workbook('data/客户名.xls')
     handle(workbook.sheet_by_index(0), client_list.sheet_by_index(0))
