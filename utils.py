@@ -108,7 +108,7 @@ class AccountDatabase():
 
         cur = self.select('DISTINCT NAME, KIND')
         order = self.orders['kind']
-        names = [(order.get(k, len(order)), n)  for n, k in cur]
+        names = [(order.get(k, len(order)), n) for n, k in cur]
         names.sort()
         self.add_order('name', [i[1] for i in names])
 

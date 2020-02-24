@@ -71,19 +71,30 @@ def write_sales(sheet: Worksheet, db: AccountDatabase,
 
 def monthly(sheet: Worksheet, db: AccountDatabase):
     y = db.distinct('YEAR').__next__()[0]
-    m = db.distinct('MONTH').__next__()[0]
-    d = max([i[0] for i in db.distinct('DAY')])
-    sheet.write(0, 0, '{}年每月份客户销量汇总表'.format(y))
-    sheet.write(0, 3, '{}-{:02d}-{:02d}'.format(y, m, d))
-
-    for i, j in enumerate(HEADER):
-        sheet.write(1, i, j, BORDC)
+    header = (['单位全名', '邮编'] +
+              ['{}月合计'.format(i+1) for i in range(12)] +
+              ['年合计'])
+    for i, j in enumerate(header):
+        sheet.write(0, i, j, BORDC)
         sheet.col(i).width_mismatch = True
         sheet.col(i).width = 3400 if i < 1 else 2100
-    nrow = 2
 
-    for sal in db.sorted_one('SALES'):
-        nrow = write_sales(sheet, db, sal, nrow)
+    clients = []
+    for cli in db.sales_map.values():
+        clients += cli
+    clients.sort()
+
+    for i, cli in enumerate(clients, 1):
+        sheet.write(i, 0, cli, BORD)
+        sheet.write(i, 1, db.client_map[cli], BORDC)
+        rsum = 0
+        for j in range(1, 13):
+            whr = 'MONTH={} AND CLIENT={} AND BASIC=1'.format(j, repr(cli))
+            val = db.select('SUM(WEIGHT)', whr).__next__()[0]
+            val = val/1000 if val else 0
+            sheet.write(i, j+1, val if val else '', BORD)
+            rsum += val if val else 0
+        sheet.write(i, 14, rsum, BORD)
 
 
 def salesman(sheet: Worksheet, db: AccountDatabase):
@@ -154,8 +165,8 @@ def make_client_map(client_list: Sheet) -> Dict[str, str]:
     return client_map
 
 
-def handle(manifest: Sheet, client_list: Sheet,
-           does_sales=True, does_annually=False):
+def handle(manifest: Sheet, client_list: Sheet, does_sales: bool,
+           does_annually: bool, does_monthly: bool):
     db = AccountDatabase(manifest, ARGS, 10)
     workbook = xlwt.Workbook(encoding='utf-8')
 
@@ -170,8 +181,16 @@ def handle(manifest: Sheet, client_list: Sheet,
         s = 'YEAR={}, MONTH={}, DAY={}'.format(t.tm_year, t.tm_mon, t.tm_mday)
         db.update(s, 'DATE={}'.format(repr(i)))
 
-    # add sales to table
-    if does_sales:
+    years = db.sorted_one('YEAR')
+    months = db.sorted_one('MONTH', 'YEAR={}'.format(years[-1]))
+
+    # add basic_flag to table
+    db.add_colume('BASIC INT')
+    for i in KINDS:
+        db.update('BASIC=1', 'KIND={}'.format(repr(i)))
+
+    # add sales_map to table
+    if does_sales or does_monthly:
         db.add_colume('SALES CHAR(16)')
         db.client_map = make_client_map(client_list)
         clients = [i[0] for i in db.distinct('CLIENT')]
@@ -188,19 +207,6 @@ def handle(manifest: Sheet, client_list: Sheet,
         for clis in db.sales_map.values():
             clis.sort()
 
-    # write monthly
-    years = db.sorted_one('YEAR')
-    for y in years:
-        months = db.sorted_one('MONTH', 'YEAR={}'.format(y))
-        for m in months:
-            continue
-            db.set_where('YEAR={} AND MONTH={}'.format(y, m))
-            if len(years) > 1:  # multiple years
-                label = '{:02d}年{}月'.format(y % 100, m)
-            else:
-                label = '{}月'.format(m)
-            monthly(workbook.add_sheet(label), db)
-
     # write salesmen
     if does_sales:
         sales = db.sorted_one('SALES')
@@ -212,8 +218,15 @@ def handle(manifest: Sheet, client_list: Sheet,
     if does_annually:
         for y in years:
             db.set_where('YEAR={}'.format(y))
-            annually(workbook.add_sheet('{}年总合计'.format(y)), db)
+            annually(workbook.add_sheet('{}总(料型)'.format(y)), db)
 
+    # write monthly
+    if does_monthly:
+        for y in years:
+            db.set_where('YEAR={}'.format(y))
+            monthly(workbook.add_sheet('{}总(客户)'.format(y)), db)
+
+    y, m = years[-1], months[-1]
     cur = db.distinct('DAY', 'YEAR={} AND MONTH={}'.format(y, m))
     d = max([i[0] for i in cur])
     path = '{:02d}.{:02d}.{:02d}-销量邮件表.xls'.format(y % 100, m, d)
@@ -224,4 +237,5 @@ if __name__ == '__main__':
     workbook = xlrd.open_workbook(
         'data/单位销售明细数据-2020_02_13-13_14_53.xls')
     client_list = xlrd.open_workbook('data/客户名.xls')
-    handle(workbook.sheet_by_index(0), client_list.sheet_by_index(0))
+    handle(workbook.sheet_by_index(0), client_list.sheet_by_index(0),
+           True, True, True)
