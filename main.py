@@ -8,14 +8,14 @@ import os
 import delivery
 import pivottable
 import utils
-from utils import Line, SheetSelector
+from utils import Line, SheetSelector, Checkbutton
 import webbrowser
 import threading
 
 
 window = tk.Tk()
 window.title('报表处理小工具')
-window.geometry('480x320')
+window.geometry('480x406')
 
 # Func 1
 tk.Label(window, text='每日线路分配').pack()
@@ -30,11 +30,18 @@ def do_delivery():
         manifest = select_manifest.get()
         assert manifest, '未选择开票明细'
         route = select_route.get()
-        if not route:
-            mb.showinfo('提示', '未选择线路分配表，将只生成今日汇总')
+        if (not route) and does_routing.get():
+            raise KeyError('未选择线路分配表，不能生成每条线路汇总')
+        if (not route) and does_printer.get():
+            raise KeyError('未选择线路分配表，不能生成标签打印表')
+        
+        does = ['routing'] if does_routing.get() else []
+        does += ['daily'] if does_daily.get() else []
+        does += ['printer'] if does_printer.get() else []
+
         f1_label.set('转换中')
         utils.log.clear()
-        delivery.handle(manifest, route)
+        delivery.handle(manifest, route, does)
         f1_label.set('转换完成')
         utils.log.show()
     except Exception as e:
@@ -42,6 +49,11 @@ def do_delivery():
         mb.showerror('错误', str(e))
         return
 
+
+# checkbutton
+does_routing = Checkbutton(window, '生成每条线路汇总').pack()
+does_daily = Checkbutton(window, '生成今日汇总').pack()
+does_printer = Checkbutton(window, '生成标签打印表').pack()
 
 tk.Button(window, text="转换", command=do_delivery).pack()
 
@@ -51,7 +63,7 @@ tk.Label(window, textvariable=f1_label).pack()
 ttk.Separator(window, orient='horizontal').pack(fill=tk.X)
 
 # Func 2
-tk.Label(window, text='每月明细分类').pack()
+tk.Label(window, text='每月明细按校分类').pack()
 
 select_monthly = SheetSelector(window, '开票明细')
 

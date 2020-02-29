@@ -68,6 +68,7 @@ class AccountDatabase():
         'NAME   CHAR(32) 6',   # 货品名称
         'SPEC   CHAR(32) 7',   # 规格
         'NUMBER REAL     8',   # 数量
+        'UNIT   CHAR(16) 9',   # 单位
         'TOTAL  REAL     11',  # 货款
     ]
 
@@ -232,6 +233,19 @@ class SheetSelector():
         if not self.workbook:
             return None
         return self.workbook.sheet_by_name(self.cbox.get())
+
+
+class Checkbutton():
+    def __init__(self, master=None, text=None, default=True):
+        self._bv = tk.BooleanVar(value=True)
+        self._btn = tk.Checkbutton(master, text=text, variable=self._bv)
+    
+    def get(self) -> bool:
+        return self._bv.get()
+    
+    def pack(self, cnf={}, **kw):
+        self._btn.pack(cnf, **kw)
+        return self
 
 
 class ErrorLogger():
