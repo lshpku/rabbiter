@@ -45,6 +45,7 @@ def do_delivery():
         f1_label.set('转换完成')
         utils.log.show()
     except Exception as e:
+        raise e
         f1_label.set('')
         mb.showerror('错误', str(e))
         return

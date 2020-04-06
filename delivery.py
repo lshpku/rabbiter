@@ -65,26 +65,28 @@ def distribute(sheet: Worksheet, db: AccountDatabase, route_map: RouteMap):
     cur = db.select('DISTINCT ROUTE')
     route = cur.__next__()[0]
     sheet.write(0, 0, route, SCHOOL)
+    sheet.write(0, 1, '规格', SCHOOL)
 
     # write goods tags in kinds' order
     kinds = db.sorted_one('KIND')
     goods = []
     for kind in kinds:
-        cur = db.select('DISTINCT NAME', 'KIND={}'.format(repr(kind)))
-        goods += [i[0] for i in cur]
-    for i, gd in enumerate(goods):
-        sheet.write(i+1, 0, gd, TEXT)
+        cur = db.select('DISTINCT NAME, SPEC', 'KIND={}'.format(repr(kind)))
+        goods += list(cur)
+    for i, (good, spec) in enumerate(goods):
+        sheet.write(i+1, 0, good, TEXT)
+        sheet.write(i+1, 1, spec, TEXT)
     goods_sum = [0] * len(goods)
 
     # write schools in appearing order
     cur = db.select('DISTINCT SCHOOL')
     schools = route_map.sort_school([i[0] for i in cur])
-    for i, school in enumerate(schools):
+    for i, school in enumerate(schools, 1):
         sheet.col(i+1).width_mismatch = True
         sheet.col(i+1).width = 2000
         sheet.write(0, i+1, route_map.schools[school][1], SCHOOL)
-        for j, gd in enumerate(goods):
-            where = 'SCHOOL={} AND NAME={}'.format(repr(school), repr(gd))
+        for j, (good, spec) in enumerate(goods):
+            where = 'SCHOOL={} AND NAME={} AND SPEC={}'.format(repr(school), repr(good), repr(spec))
             cur = db.select('SUM(NUMBER)', where)
             value = cur.__next__()[0]
             goods_sum[j] += value if value else 0
@@ -145,9 +147,11 @@ def handle(manifest: Sheet, route: Sheet, does: Iterable[str] = ...):
         does = ['routing', 'daily', 'printer']
     does = set(does)
 
-    if 'routing' in does:
+    if 'routing' in does or 'printer' in does:
         route_map = RouteMap(route)
         add_route(db, route_map)
+
+    if 'routing' in does:
         cur = db.select('DISTINCT ROUTE')
         routes = route_map.sort_route([i[0] for i in cur if i[0]])
         for route in routes:
