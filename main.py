@@ -34,7 +34,7 @@ def do_delivery():
             raise KeyError('未选择线路分配表，不能生成每条线路汇总')
         if (not route) and does_printer.get():
             raise KeyError('未选择线路分配表，不能生成标签打印表')
-        
+
         does = ['routing'] if does_routing.get() else []
         does += ['daily'] if does_daily.get() else []
         does += ['printer'] if does_printer.get() else []
@@ -45,10 +45,8 @@ def do_delivery():
         f1_label.set('转换完成')
         utils.log.show()
     except Exception as e:
-        raise e
         f1_label.set('')
         mb.showerror('错误', str(e))
-        return
 
 
 # checkbutton

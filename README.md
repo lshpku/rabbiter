@@ -7,7 +7,7 @@ python3
 xlrd
 xlwt
 ```
-For windows installation:
+For Windows installation:
 ```shell
 pyinstaller
 ```

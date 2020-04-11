@@ -158,6 +158,9 @@ def make_client_map(client_list: Sheet) -> Dict[str, str]:
     client_map = {}
     for i, client in enumerate(clients):
         sal = sales[i]
+        if not sal:
+            log('“{}”的业务员为空，归为“其他”'.format(client))
+            sal = '其他'
         ret = client_map.setdefault(client, sal)
         if ret != sal:
             log('“{}”同时属于“{}”和“{}”，自动归为“{}”'
@@ -195,11 +198,10 @@ def handle(manifest: Sheet, client_list: Sheet, does_sales: bool,
         db.client_map = make_client_map(client_list)
         clients = [i[0] for i in db.distinct('CLIENT')]
         for cli in clients:
-            sal = db.client_map.get(cli)
-            if sal is None:
-                log('客户“{}”无对应业务员，已丢弃'.format(cli))
-            db.update('SALES={}'.format(repr(sal)),
-                      'CLIENT={}'.format(repr(cli)))
+            sal = db.client_map.setdefault(cli, '其他')
+            if sal == '其他':
+                log('客户“{}”无对应业务员，归为“其他”'.format(cli))
+            db.update('SALES={}'.format(repr(sal)), 'CLIENT={}'.format(repr(cli)))
 
         db.sales_map = {}
         for cli, sal in db.client_map.items():
@@ -212,7 +214,7 @@ def handle(manifest: Sheet, client_list: Sheet, does_sales: bool,
         sales = db.sorted_one('SALES')
         for s in sales:
             db.set_where('SALES={}'.format(repr(s)))
-            salesman(workbook.add_sheet(s if s else '其他'), db)
+            salesman(workbook.add_sheet(s), db)
 
     # write anually
     if does_annually:
@@ -234,8 +236,7 @@ def handle(manifest: Sheet, client_list: Sheet, does_sales: bool,
 
 
 if __name__ == '__main__':
-    workbook = xlrd.open_workbook(
-        'data/单位销售明细数据-2020_02_13-13_14_53.xls')
+    log = print
+    workbook = xlrd.open_workbook('data/单位销售明细数据-2020_04_10-12_02_03.xls')
     client_list = xlrd.open_workbook('data/客户名.xls')
-    handle(workbook.sheet_by_index(0), client_list.sheet_by_index(0),
-           True, True, True)
+    handle(workbook.sheet_by_index(0), client_list.sheet_by_index(0), True, True, True)

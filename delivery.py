@@ -124,17 +124,17 @@ def daily_sum(sheet: Worksheet, db: AccountDatabase):
 
 
 def plain_text(db: AccountDatabase) -> str:
-    header = '线路\t客户名称\t货品名称\t数量\t规格\t单位'
+    header = '线路\t客户名称\t餐类\t货品名称\t数量\t规格\t单位'
     data = [header]
     for r in db.sorted_one('ROUTE'):
         for s in db.sorted_one('ABBR', 'ROUTE={}'.format(repr(r))):
             line = [r, s]
-            tar = 'NAME, NUMBER, SPEC, UNIT'
+            tar = 'MEAL, NAME, NUMBER, SPEC, UNIT'
             whr = 'ABBR={}'.format(repr(s))
-            for name, num, spec, unit in db.select(tar, whr):
+            for kind, name, num, spec, unit in db.select(tar, whr):
                 nums = str(num)
                 nums = nums[:-2] if nums.endswith('.0') else nums
-                data.append('\t'.join(line + [name, nums, spec, unit]))
+                data.append('\t'.join(line + [kind, name, nums, spec, unit]))
     return '\n'.join(data)
 
 
